@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>生理期小月曆</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+    body {
+      background-color: #ffffff;
+      color: #fff;
+      font-family: 'Segoe UI', sans-serif;
+      transition: background-color 0.5s, color 0.5s;
+    }
+    .dark-mode {
+      background-color: #2c1a4d;
+      color: #f7d6ec !important;
+    }
+    .dark-mode, .dark-mode h1, .dark-mode h2, .dark-mode h3, .dark-mode h4, .dark-mode h5, .dark-mode h6,
+    .dark-mode p, .dark-mode span, .dark-mode li, .dark-mode strong, .dark-mode label, .dark-mode input, .dark-mode textarea {
+    color: #f7d6ec !important;
+    }
+    .card {
+      background-color: #f7d6ec;
+      border-radius: 15px;
+      margin-bottom: 20px;
+    }
+    .dark-mode .card {
+      background-color: #3b2b5a;
+      color: #000;
+    }
+    .btn-custom {
+      background-color: #ff6fb5;
+      color: #f7d6ec !important;
+    }
+    .period-bar {
+      height: 10px;
+      border-radius: 5px;
+      margin: 10px 0;
+    }
+    .dark-mode,
+    .dark-mode .card,
+    .dark-mode .btn-outline-light,
+    .dark-mode .text-light,
+    .dark-mode h1, .dark-mode h2, .dark-mode h3, .dark-mode h4, .dark-mode h5, .dark-mode h6,
+    .dark-mode p, .dark-mode span, .dark-mode li, .dark-mode strong, .dark-mode label,
+    .dark-mode input, .dark-mode textarea, 
+    .dark-mode button, .dark-mode canvas,
+    .dark-mode #nextPeriodPrediction, .dark-mode #historyList {
+    color: #f7d6ec !important;
+    border-color: #f7d6ec !important;
+    }
+
+.dark-mode .btn-outline-light {
+  background-color: transparent;
+  color: #f7d6ec !important;
+  border-color: #f7d6ec !important;
+}
+
+.dark-mode .form-control {
+  background-color: transparent;
+  color: #f7d6ec !important;
+  border-color: #3b2b5a !important;
+}
+/* 日間模式下的夜間切換按鈕樣式 */
+.btn-outline-light {
+  color: #2c1a4d !important;
+  font-weight: bold;
+}
+.calendar {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+  background-color: #1c1531;
+  color: #fff;
+  padding: 10px;
+  border-radius: 12px;
+}
+.calendar-day {
+  aspect-ratio: 1 / 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  border-radius: 10px;
+  position: relative;
+  cursor: pointer;
+  transition: 0.2s;
+}
+.calendar-day.today { background-color: #a98dfc; }
+.calendar-day.ovulation { background-color: #bb86fc; }
+.calendar-day.fertile { background-color: #ff77ab; }
+.calendar-day.period { background-color: #ff99a3; }
+.calendar-info-box {
+  background-color: #2e204b;
+  border-radius: 12px;
+  padding: 10px;
+  color: #f7d6ec;
+}
+
+
+    .bar-red { background-color: #ff6f91; }
+    .bar-yellow { background-color: #ffd166; }
+    .bar-grey { background-color: #cccccc; }
+    .highlight { box-shadow: 0 0 10px 2px white; }
+  </style>
+</head>
+<body>
+<!-- 以下新增登入與備份功能 -->
+<div id="loginScreen" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: #2c1a4d; display: flex; align-items: center; justify-content: center; z-index: 9999;">
+<div class="card p-4 text-center">
+<h4 class="mb-3">🔐 請輸入密碼</h4>
+<input class="form-control mb-2" id="loginPassword" placeholder="6 位數密碼" type="password"/>
+<button class="btn btn-custom" onclick="checkPassword()">登入</button>
+<p class="text-danger mt-2" id="loginError"></p>
+</div>
+</div>
+<script></script>
+<div class="container py-4">
+<h2 class="text-center mb-4" style="color: black;">🔔 生理期追蹤小幫手</h2>
+<div class="d-flex justify-content-end mb-3">
+<button class="btn btn-outline-light" onclick="toggleDarkMode()">🌙 夜間模式</button>
+</div>
+<div class="card p-3">
+<h5>上次生理期</h5>
+<input class="form-control mb-2" id="lastPeriodInput" type="date"/>
+<p>距今 <span id="daysSince">???</span> 天</p>
+<button class="btn btn-custom" onclick="savePeriodDate()">儲存日期</button>
+</div>
+<div class="card p-3">
+<label for="cycleLength">輸入週期長度（天）</label>
+<input class="form-control" id="cycleLength" max="40" min="21" placeholder="預設 28" type="number"/>
+</div>
+<div class="card p-3">
+<h5>預測週期：第 <span id="currentDay">6</span> 天</h5>
+<p>懷孕機率：<strong id="fertilityLevel">低</strong></p>
+<div class="d-flex" id="cycleBar"></div>
+</div>
+<div class="card p-3">
+<h5>你今天感覺怎麼樣？</h5>
+<textarea class="form-control mb-2" id="statusNote" placeholder="輸入今天的身體狀況..." rows="3"></textarea>
+<button class="btn btn-outline-light" onclick="saveStatus()">新增狀態</button>
+</div>
+<div class="card p-3">
+<h5>寫日記</h5>
+<textarea class="form-control mb-2" id="diaryNote" placeholder="寫下今天的心情與感受..." rows="3"></textarea>
+<button class="btn btn-outline-light" onclick="saveDiary()">儲存日記</button>
+</div>
+<div class="card p-3">
+<h5>週期趨勢圖表</h5>
+<canvas id="cycleChart"></canvas>
+</div>
+<div class="card p-3">
+<div class="calendar-header d-flex justify-content-between">
+<button class="btn btn-sm btn-outline-light" onclick="changeMonth(-1)">← 上個月</button>
+<h5 id="calendarTitle">📅 月曆</h5>
+<button class="btn btn-sm btn-outline-light" onclick="changeMonth(1)">下個月 →</button>
+</div>
+<div class="calendar" id="calendarGrid"></div>
+<div class="calendar-info-box mt-3" id="calendarInfo">點選任一天查看狀態</div>
+</div>
+<div class="card p-3">
+<h5>AI 預測下次生理期</h5>
+<p id="nextPeriodPrediction">請先儲存上次生理期日期以進行預測。</p>
+</div>
+<div class="card p-3">
+<h5>歷史紀錄分析</h5>
+<ul class="text-light" id="historyList"></ul>
+<button class="btn btn-outline-light mt-2" onclick="clearHistory()">清除所有紀錄</button>
+</div>
+</div>
+
+<script>
+    const lastPeriodInput = document.getElementById('lastPeriodInput');
+    const daysSinceElem = document.getElementById('daysSince');
+    const currentDayElem = document.getElementById('currentDay');
+    const fertilityLevel = document.getElementById('fertilityLevel');
+    const cycleBar = document.getElementById('cycleBar');
+    const chartContext = document.getElementById('cycleChart').getContext('2d');
+    const historyList = document.getElementById('historyList');
+    const nextPrediction = document.getElementById('nextPeriodPrediction');
+
+    function calculateDaysSince(dateStr) {
+      const date = new Date(dateStr);
+      const today = new Date();
+      const diffTime = today - date;
+      return Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    }
+
+    function savePeriodDate() {
+      const date = lastPeriodInput.value;
+      if (date) {
+        localStorage.setItem('lastPeriod', date);
+        const history = JSON.parse(localStorage.getItem('periodHistory') || '[]');
+        history.push(date);
+        localStorage.setItem('periodHistory', JSON.stringify(history));
+        updateDaysDisplay();
+        predictNextPeriod();
+        renderHistory();
+      }
+    }
+
+    function renderCycleBar(day) {
+      cycleBar.innerHTML = '';
+      for (let i = 1; i <= 28; i++) {
+        const bar = document.createElement('div');
+        bar.classList.add('period-bar', 'flex-grow-1');
+        if (i <= 5) bar.classList.add('bar-red');
+        else if (i >= 12 && i <= 16) bar.classList.add('bar-yellow');
+        else bar.classList.add('bar-grey');
+        if (i === day) bar.classList.add('highlight');
+        cycleBar.appendChild(bar);
+      }
+      if (day >= 12 && day <= 16) fertilityLevel.textContent = '高';
+      else if (day <= 5) fertilityLevel.textContent = '低';
+      else fertilityLevel.textContent = '中';
+    }
+
+    function updateDaysDisplay() {
+      const savedDate = localStorage.getItem('lastPeriod');
+      if (savedDate) {
+        lastPeriodInput.value = savedDate;
+        const days = calculateDaysSince(savedDate);
+        const cycleDay = (days % 28) || 28;
+        daysSinceElem.innerText = days;
+        currentDayElem.innerText = cycleDay;
+        renderCycleBar(cycleDay);
+        updateChart(cycleDay);
+      }
+    }
+
+    function updateChart(currentDay) {
+      const labels = Array.from({ length: 28 }, (_, i) => `Day ${i + 1}`);
+      const backgroundColors = labels.map((_, i) => {
+        const day = i + 1;
+        if (day <= 5) return '#ff6f91';
+        else if (day >= 12 && day <= 16) return '#ffd166';
+        else return '#cccccc';
+      });
+      const data = labels.map((_, i) => i + 1 === currentDay ? 1 : 0);
+      if (window.chart) window.chart.destroy();
+      window.chart = new Chart(chartContext, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: '週期日數位置',
+            data: data,
+            backgroundColor: backgroundColors
+          }]
+        },
+        options: {
+          scales: {
+            y: { beginAtZero: true, max: 1 }
+          }
+        }
+      });
+    }
+
+    function predictNextPeriod() {
+      const savedDate = localStorage.getItem('lastPeriod');
+      if (savedDate) {
+        const lastDate = new Date(savedDate);
+        const nextDate = new Date(lastDate);
+        nextDate.setDate(nextDate.getDate() + 28);
+        const formatted = `${nextDate.getFullYear()}年${nextDate.getMonth() + 1}月${nextDate.getDate()}日`;
+        nextPrediction.innerText = `根據上次生理期預測，下次開始為：${formatted}`;
+      } else {
+        nextPrediction.innerText = '請輸入上次生理期日期。';
+      }
+    }
+
+    function renderHistory() {
+      const history = JSON.parse(localStorage.getItem('periodHistory') || '[]');
+      historyList.innerHTML = '';
+      history.forEach((d, i) => {
+        const li = document.createElement('li');
+        li.textContent = `第 ${i + 1} 次：${d}`;
+        historyList.appendChild(li);
+      });
+    }
+
+    function clearHistory() {
+      localStorage.removeItem('periodHistory');
+      historyList.innerHTML = '';
+    }
+
+    function saveStatus() {
+      const status = document.getElementById('statusNote').value;
+      if (status) {
+        localStorage.setItem('todayStatus', status);
+        alert("已儲存身體狀況！");
+      }
+    }
+
+    function saveDiary() {
+      const note = document.getElementById('diaryNote').value;
+      if (note) {
+        localStorage.setItem('todayDiary', note);
+        alert("日記已儲存！");
+      }
+    }
+
+    function toggleDarkMode() {
+      document.body.classList.toggle('dark-mode');
+    }
+
+    // 初始化
+    updateDaysDisplay();
+    predictNextPeriod();
+    renderHistory();
+  </script>
+<script>
+  const PASSWORD = '123456'; // 可自行修改
+
+  function checkPassword() {
+    const input = document.getElementById('loginPassword').value;
+    if (input === PASSWORD) {
+      document.getElementById('loginScreen').style.display = 'none';
+    } else {
+      document.getElementById('loginError').innerText = '密碼錯誤，請再試一次';
+    }
+  }
+</script>
+<script>
+const calendarGrid = document.getElementById('calendarGrid');
+const calendarTitle = document.getElementById('calendarTitle');
+const calendarInfo = document.getElementById('calendarInfo');
+
+let currentMonth = new Date().getMonth();
+let currentYear = new Date().getFullYear();
+
+function getDayType(day, ovulationDay) {
+  if (day === ovulationDay) return 'ovulation';
+  if (day >= ovulationDay - 5 && day <= ovulationDay - 1 || day === ovulationDay + 1) return 'fertile';
+  if (day >= 1 && day <= 5) return 'period';
+  return '';
+}
+
+function renderCalendar(year, month) {
+  calendarGrid.innerHTML = '';
+  const firstDay = new Date(year, month, 1).getDay();
+  const totalDays = new Date(year, month + 1, 0).getDate();
+
+  const lastPeriod = localStorage.getItem('lastPeriod');
+  const cycleLength = 28;
+  const ovulationOffset = 14;
+
+  let ovulationDay = 14;
+  if (lastPeriod) {
+    const base = new Date(lastPeriod);
+    const expectedOvulation = new Date(base);
+    expectedOvulation.setDate(expectedOvulation.getDate() + ovulationOffset);
+    if (expectedOvulation.getFullYear() === year && expectedOvulation.getMonth() === month) {
+      ovulationDay = expectedOvulation.getDate();
+    }
+  }
+
+  for (let i = 0; i < firstDay; i++) {
+    const empty = document.createElement('div');
+    calendarGrid.appendChild(empty);
+  }
+
+  for (let d = 1; d <= totalDays; d++) {
+    const dayEl = document.createElement('div');
+    dayEl.classList.add('calendar-day');
+    dayEl.innerText = d;
+
+    const type = getDayType(d, ovulationDay);
+    if (type) dayEl.classList.add(type);
+
+    const today = new Date();
+    if (today.getFullYear() === year && today.getMonth() === month && today.getDate() === d) {
+      dayEl.classList.add('today');
+    }
+
+    dayEl.addEventListener('click', () => {
+      document.querySelectorAll('.calendar-day').forEach(el => el.classList.remove('today'));
+      dayEl.classList.add('today');
+
+      let msg = '中';
+      if (type === 'period') msg = '低';
+      else if (type === 'fertile') msg = '高';
+      else if (type === 'ovulation') msg = '非常高（排卵日）';
+
+      calendarInfo.innerHTML = `<strong>${year}年${month + 1}月${d}日</strong><br>懷孕機率：${msg}`;
+    });
+
+    calendarGrid.appendChild(dayEl);
+  }
+
+  calendarTitle.innerText = `📅 ${year}年${month + 1}月`;
+}
+
+
+function changeMonth(offset) {
+  currentMonth += offset;
+  if (currentMonth < 0) {
+    currentMonth = 11;
+    currentYear--;
+  } else if (currentMonth > 11) {
+    currentMonth = 0;
+    currentYear++;
+  }
+  renderCalendar(currentYear, currentMonth);
+}
+
+renderCalendar(currentYear, currentMonth);
+</script>
+<script>
+  function getDayTypeByDate(baseDate, date, cycleLength, periodLength = 5, ovulationOffset = 14) {
+    const diff = Math.floor((date - baseDate) / (1000 * 60 * 60 * 24));
+    const modDay = diff % cycleLength;
+
+    if (modDay >= 0 && modDay < periodLength) return 'period';
+    if (modDay >= ovulationOffset - 5 && modDay <= ovulationOffset - 1 || modDay === ovulationOffset + 1) return 'fertile';
+    if (modDay === ovulationOffset) return 'ovulation';
+    return '';
+  }
+
+  function renderCalendar(year, month) {
+    calendarGrid.innerHTML = '';
+    const firstDay = new Date(year, month, 1).getDay();
+    const totalDays = new Date(year, month + 1, 0).getDate();
+
+    const lastPeriod = localStorage.getItem('lastPeriod');
+    const cycleLength = parseInt(document.getElementById('cycleLength')?.value) || 28;
+    const ovulationOffset = 14;
+    const periodLength = 5;
+
+    let base = new Date();
+    if (lastPeriod) base = new Date(lastPeriod);
+
+    for (let i = 0; i < firstDay; i++) {
+      const empty = document.createElement('div');
+      calendarGrid.appendChild(empty);
+    }
+
+    for (let d = 1; d <= totalDays; d++) {
+      const thisDate = new Date(year, month, d);
+      const type = getDayTypeByDate(base, thisDate, cycleLength, periodLength, ovulationOffset);
+
+      const dayEl = document.createElement('div');
+      dayEl.classList.add('calendar-day');
+      dayEl.innerText = d;
+      if (type) dayEl.classList.add(type);
+
+      const today = new Date();
+      if (today.getFullYear() === year && today.getMonth() === month && today.getDate() === d) {
+        dayEl.classList.add('today');
+      }
+
+      dayEl.addEventListener('click', () => {
+        document.querySelectorAll('.calendar-day').forEach(el => el.classList.remove('today'));
+        dayEl.classList.add('today');
+
+        let msg = '中';
+        if (type === 'period') msg = '低';
+        else if (type === 'fertile') msg = '高';
+        else if (type === 'ovulation') msg = '非常高（排卵日）';
+
+        calendarInfo.innerHTML = `<strong>${year}年${month + 1}月${d}日</strong><br>懷孕機率：${msg}`;
+      });
+
+      calendarGrid.appendChild(dayEl);
+    }
+
+    calendarTitle.innerText = `📅 ${year}年${month + 1}月`;
+  }
+</script>
+</body>
+</html>
